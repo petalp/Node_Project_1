@@ -1,7 +1,7 @@
 import express from 'express';
 import bycrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import db from '../db.js'
+
 import bcrypt from 'bcryptjs';
 import prisma from '../prismaClient.js';
 
