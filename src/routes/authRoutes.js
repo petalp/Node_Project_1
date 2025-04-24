@@ -3,29 +3,34 @@ import bycrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import db from '../db.js'
 import bcrypt from 'bcryptjs';
+import prisma from '../prismaClient.js';
 
 
 const router = express.Router();
 
-router.post('/register', (req, res)=>{
+router.post('/register', async(req, res)=>{
     const {username, password} = req.body;
     
     // encrypt the password
     const hashPassword = bcrypt.hashSync(password, 8);
 
     try{
-        const insertUser = db.prepare(`INSERT INTO user (username, password)
-            VALUES(?, ?)`);
+        const user = await prisma.user.create({
+            data: {
+                username,
+                password:hashPassword
+            }
+        })
         
         // not that we have a user, I want to add their first todo for them
-        const result = insertUser.run(username, hashPassword);
         const defualtTodo = `Hello :) Add your first todo`;
-        const insertTodo = db.prepare(`INSERT INTO todos (user_id, task)
-            VALUES(?, ?)`);
-        insertTodo.run(result.lastInsertRowid, defualtTodo);
+        await prisma.todo.create({
+            task:defualtTodo,
+            userId: user.id
+        })
 
         // create a token
-        const token = jwt.sign({id:result.lastInsertRowid}, process.env.JWT_SECRET, {expiresIn:'24h'});
+        const token = jwt.sign({id:user.id}, process.env.JWT_SECRET, {expiresIn:'24h'});
         res.json({token});
     }catch(err){
         console.log(err.message);
@@ -33,11 +38,14 @@ router.post('/register', (req, res)=>{
     }
 })
 
-router.post('/login', (req, res)=>{
+router.post('/login', async (req, res)=>{
 const {username, password} = req.body;
 try{
-    const getUser = db.prepare('SELECT * FROM user WHERE username = ?');
-    const user = getUser.get(username);
+    const user = await prisma.user.findUnique({
+        where:{
+            username:username
+        }
+    })
     
     //if we cannot find a user associated with that username, return out from the user
     if(!user){return res.status(404).send({message:"User not found"})};
@@ -47,7 +55,7 @@ try{
     if(!passwordIsValid){return res.status(401).send({message:"Invalid password"})};
     console.log(user);
     // then we have successful authentication
-    const token = jwt.sign({id :user.id}, process.env.JWT_SECRET, {expiresIn:'24h'});
+    const token = jwt.sign({id:user.id}, process.env.JWT_SECRET, {expiresIn:'24h'});
     res.json({token})
 }catch(err){
     console.log(err);
